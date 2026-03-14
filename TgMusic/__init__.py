@@ -2,14 +2,42 @@
 # Licensed under the GNU AGPL v3.0: https://www.gnu.org/licenses/agpl-3.0.html
 # Part of the TgMusicBot project. All rights reserved where applicable.
 
-
 import asyncio
+import json
 from datetime import datetime
 
 from pytdbot import Client, types
+from pytdbot.tdjson.tdjson import TdJson
 
 __version__ = "1.2.4"
 StartTime = datetime.now()
+
+
+def _patch_pytdbot_tdjson() -> None:
+    def execute(self, request):
+        if not isinstance(request, str):
+            request = json.dumps(
+                request,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        res = self._td_execute(request)
+        return json.loads(res) if res else None
+
+    def send(self, query):
+        if not isinstance(query, str):
+            query = json.dumps(
+                query,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        return self._td_send(self._client_id, query)
+
+    TdJson.execute = execute
+    TdJson.send = send
+
+
+_patch_pytdbot_tdjson()
 
 from TgMusic.core import call, config, db, tg
 
