@@ -24,14 +24,14 @@ def _patch_pytdbot_tdjson() -> None:
         res = self._td_execute(request)
         return json.loads(res) if res else None
 
-    def send(self, query):
+    def send(self, client_id, query):
         if not isinstance(query, str):
             query = json.dumps(
                 query,
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
-        return self._td_send(self._client_id, query)
+        return self._td_send(client_id, query)
 
     TdJson.execute = execute
     TdJson.send = send
@@ -43,26 +43,7 @@ from TgMusic.core import call, config, db, tg
 
 
 class Bot(Client):
-    """The main bot class, inheriting from `pytdbot.Client`.
-
-    This class orchestrates the entire bot, including its initialization,
-    the startup of all its components (like database, assistants, and background
-    jobs), and its graceful shutdown.
-
-    Attributes:
-        config: An instance of the bot's configuration settings.
-        db: An instance of the database manager.
-        call: An instance of the call manager for voice chats.
-        tg: An instance of the Telegram media helper.
-        call_manager: An instance of the background job manager.
-    """
-
     def __init__(self) -> None:
-        """Initializes the main bot client.
-
-        This sets up the `pytdbot` client with the necessary parameters from
-        the configuration and initializes all core service modules.
-        """
         super().__init__(
             token=config.TOKEN,
             api_id=config.API_ID,
@@ -77,7 +58,6 @@ class Bot(Client):
         self._initialize_services()
 
     def _initialize_services(self) -> None:
-        """Initializes and attaches all core service modules to the bot instance."""
         from TgMusic.modules.jobs import InactiveCallManager
 
         self.config = config
@@ -89,11 +69,6 @@ class Bot(Client):
         self._version = __version__
 
     async def start_clients(self) -> None:
-        """Starts all assistant (Pyrogram) client sessions concurrently.
-
-        Raises:
-            SystemExit: If any of the clients fail to start.
-        """
         try:
             await asyncio.gather(
                 *[
@@ -105,12 +80,6 @@ class Bot(Client):
             raise SystemExit(1) from exc
 
     async def initialize_components(self) -> None:
-        """Initializes all bot components in the correct order.
-
-        This method orchestrates the startup sequence, including connecting to
-        the database, starting assistant clients, registering event handlers,
-        and starting background tasks.
-        """
         from TgMusic.core import save_all_cookies
 
         await save_all_cookies(config.COOKIES_URL)
@@ -125,11 +94,6 @@ class Bot(Client):
         self.logger.info(f"Version: {self._version}")
 
     async def stop_task(self) -> None:
-        """Handles the graceful shutdown of all bot components.
-
-        This ensures that database connections, client sessions, and background
-        tasks are all stopped cleanly.
-        """
         self.logger.info("Stopping bot...")
         try:
             shutdown_tasks = [
@@ -143,11 +107,6 @@ class Bot(Client):
             raise
 
     def _get_uptime(self) -> float:
-        """Calculates the bot's current uptime.
-
-        Returns:
-            float: The uptime in total seconds.
-        """
         return (datetime.now() - self._start_time).total_seconds()
 
 
