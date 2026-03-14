@@ -45,7 +45,7 @@ dependencies = [
     "pymongo>=4.15.3",
     "pytdbot>=0.9.8.dev0",
     "pytgcrypto>=1.2.11",
-    "tdjson==1.8.55",
+    "tdjson==1.8.58",
     "ujson>=5.11.0",
     "yt-dlp",
 ]
