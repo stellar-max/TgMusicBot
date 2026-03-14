@@ -39,6 +39,7 @@ dependencies = [
     "psutil>=7.1.0",
     "py-tgcalls>=2.2.11",
     "py-yt-search>=0.5.7",
+    "python-dotenv>=1.0.1",
     "pycryptodome>=3.23.0",
     "pydantic>=2.12.2",
     "pymongo>=4.15.3",
