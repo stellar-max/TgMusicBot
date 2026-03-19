@@ -49,26 +49,6 @@ from .utils import send_logger
 
 
 class Calls:
-    """Manages all aspects of voice calls using `pytgcalls`.
-
-    This class handles multiple client sessions (assistants), playback of media,
-    call lifecycle events (joining, leaving, ending), and user interactions
-    like pausing, resuming, seeking, and changing volume. It integrates with
-
-    caching, database, and media downloading modules to provide a complete
-    voice chat experience.
-
-    Attributes:
-        calls (dict[str, PyTgCalls]): A dictionary mapping client names to their
-            `PyTgCalls` instances.
-        pyrogram_clients (dict[str, PyroClient]): A dictionary mapping client
-            names to their Pyrogram client instances.
-        client_counter (int): A counter for naming new client sessions.
-        available_clients (list[str]): A list of names of the currently active
-            and available client sessions.
-        bot (Optional[Client]): The main `pytdbot` client instance for the bot.
-    """
-
     def __init__(self):
         """Initializes the Calls manager."""
         self.calls: dict[str, PyTgCalls] = {}
@@ -78,30 +58,10 @@ class Calls:
         self.bot: Optional[Client] = None
 
     async def add_bot(self, bot: Client) -> types.Ok:
-        """Sets the main bot client instance.
-
-        Args:
-            bot (Client): The `pytdbot` client instance of the main bot.
-
-        Returns:
-            types.Ok: A success object.
-        """
         self.bot = bot
         return types.Ok()
 
     async def _get_client_name(self, chat_id: int) -> Union[str, types.Error]:
-        """Gets an available assistant client session name for a chat.
-
-        It first checks if an assistant is already assigned to the chat in the
-        database. If not, it randomly picks an available one and assigns it.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[str, types.Error]: The name of the client session, or an
-                `Error` object if no clients are available.
-        """
         if not self.available_clients:
             return types.Error(
                 code=500, message="No clients available\nReport this issue"
@@ -120,15 +80,6 @@ class Calls:
         return new_client
 
     async def _group_assistant(self, chat_id: int) -> Union[PyTgCalls, types.Error]:
-        """Retrieves the `PyTgCalls` instance for a given chat.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[PyTgCalls, types.Error]: The `PyTgCalls` instance for the
-                chat's assigned assistant, or an `Error` object.
-        """
         client_name = await self._get_client_name(chat_id)
         if isinstance(client_name, types.Error):
             return client_name
@@ -136,15 +87,6 @@ class Calls:
         return self.calls[client_name]
 
     async def get_client(self, chat_id: int) -> Union[PyroClient, types.Error]:
-        """Gets the Pyrogram client instance for a chat's assigned assistant.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[PyroClient, types.Error]: The Pyrogram client instance, or an
-                `Error` object if unavailable or not initialized correctly.
-        """
         client = await self._group_assistant(chat_id)
         if isinstance(client, types.Error):
             return client
@@ -167,19 +109,6 @@ class Calls:
     async def start_client(
         self, api_id: int, api_hash: str, session_string: str
     ) -> None:
-        """Starts and initializes a new Pyrogram client and `PyTgCalls` instance.
-
-        This method creates, starts, and registers a new assistant client
-        using the provided credentials.
-
-        Args:
-            api_id (int): The Telegram API ID.
-            api_hash (str): The Telegram API hash.
-            session_string (str): The Pyrogram session string for authentication.
-
-        Raises:
-            RuntimeError: If the client fails to start.
-        """
         client_name = f"client{self.client_counter}"
         try:
             user_bot = PyroClient(
@@ -215,11 +144,6 @@ class Calls:
                 LOGGER.error("Error stopping client %s: %s", name, e)
 
     async def register_decorators(self) -> None:
-        """Registers the `pytgcalls` event handlers for all active clients.
-
-        This sets up the listeners for events like stream ending, a user
-        leaving, or the voice chat being closed.
-        """
         for _call in self.calls.values():
 
             @_call.on_update()
@@ -258,31 +182,11 @@ class Calls:
         video: bool = False,
         ffmpeg_parameters: Optional[str] = None,
     ) -> Union[types.Ok, types.Error]:
-        """Plays media in a voice chat.
-
-        This is the core function for starting a stream. It handles joining the
-        call, setting up the media stream, and initiating playback.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-            file_path (Union[str, Path]): The path to the local media file or a URL.
-            video (bool): Whether to stream as video. Defaults to False.
-            ffmpeg_parameters (Optional[str]): Custom ffmpeg parameters for
-                the stream (e.g., for seeking). Defaults to None.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error` on failure.
-        """
-        LOGGER.info(
-            "Playing media for chat %s: %s (video=%s)", chat_id, file_path, video
-        )
-
         client = await self._group_assistant(chat_id)
         if isinstance(client, types.Error):
             chat_cache.clear_chat(chat_id)
             return client
 
-        # Validate media file exists if not URL
         if not re.match("^https?://", str(file_path)) and not os.path.exists(file_path):
             return types.Error(
                 code=404, message="Media file not found. It may have been deleted."
@@ -310,14 +214,12 @@ class Calls:
         )
         try:
             await client.play(chat_id, _stream, call_config)
-            # Send playback log if enabled
             if await db.get_logger_status(self.bot.me.id):
                 self.bot.loop.create_task(
                     send_logger(
                         self.bot, chat_id, chat_cache.get_playing_track(chat_id)
                     )
                 )
-
             return types.Ok()
         except (exceptions.NoActiveGroupCall, ntgcalls.ConnectionNotFound):
             return types.Error(
@@ -352,15 +254,6 @@ class Calls:
             return types.Error(code=500, message=f"Playback error: {str(e)}")
 
     async def play_next(self, chat_id: int) -> None:
-        """Handles the playback of the next track in the queue.
-
-        This function is typically called when a stream ends. It manages loop
-        counts, retrieves the next song from the cache, and handles cases
-        where the queue is empty.
-
-        Args:
-            chat_id (int): The ID of the chat where the stream ended.
-        """
         LOGGER.info("Playing next song for chat %s", chat_id)
         loop = chat_cache.get_loop_count(chat_id)
         if loop > 0:
@@ -368,8 +261,6 @@ class Calls:
             if current_song := chat_cache.get_playing_track(chat_id):
                 await self._play_song(chat_id, current_song)
                 return
-
-        # Get next song from queue
         if next_song := chat_cache.get_upcoming_track(chat_id):
             chat_cache.remove_current_song(chat_id)
             await self._play_song(chat_id, next_song)
@@ -378,27 +269,15 @@ class Calls:
             await self._handle_no_songs(chat_id)
 
     async def _play_song(self, chat_id: int, song: CachedTrack) -> None:
-        """Internal helper method to orchestrate the playing of a single song.
-
-        This includes sending status messages, downloading the track if needed,
-        starting the playback, and updating the "Now Playing" message.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-            song (CachedTrack): The cached track object to be played.
-        """
         LOGGER.info("Playing song for chat %s: %s", chat_id, song.name)
 
         try:
-            # Send an initial loading message
             reply = await self.bot.sendTextMessage(
                 chat_id, "⏳ Loading... Please wait."
             )
             if isinstance(reply, types.Error):
                 LOGGER.error("Failed to send message: %s", reply)
                 return
-
-            # Download song if isn't downloaded
             file_path = song.file_path or await self.song_download(song)
             if not file_path:
                 await reply.edit_text(
@@ -406,34 +285,25 @@ class Calls:
                 )
                 await self.play_next(chat_id)
                 return
-
-            # Start playback
             play_result = await self.play_media(chat_id, file_path, video=song.is_video)
             if isinstance(play_result, types.Error):
                 await reply.edit_text(play_result.message)
                 return
-
-            # Get duration if not available
             duration = song.duration or await get_audio_duration(file_path)
 
-            # Prepare a playback message
             text = (
                 f"<b>Now Playing:</b>\n\n"
                 f"‣ <b>Title:</b> <a href='{song.url}'>{song.name}</a>\n"
                 f"‣ <b>Duration:</b> {sec_to_min(duration)}\n"
                 f"‣ <b>Requested by:</b> {song.user}"
             )
-
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
             )
-            # Parse text entities
             parse = await self.bot.parseTextEntities(text, types.TextParseModeHTML())
             if isinstance(parse, types.Error):
                 LOGGER.error("Failed to parse text entities: %s", parse)
-                parse = text  # Fallback to an original text
-
-            # Update a message with media or text
+                parse = text
             if thumbnail:
                 input_content = types.InputMessagePhoto(
                     photo=types.InputFileLocal(thumbnail), caption=parse
@@ -470,15 +340,6 @@ class Calls:
 
     @staticmethod
     async def song_download(song: CachedTrack) -> Union[Path, types.Error]:
-        """Downloads a song using the appropriate service wrapper.
-
-        Args:
-            song (CachedTrack): The cached track object containing song data.
-
-        Returns:
-            Union[Path, types.Error]: The path to the downloaded file, or an
-                `Error` object if the download fails.
-        """
         song_url = song.url
         wrapper = DownloaderWrapper(song_url)
         if wrapper.is_valid():
@@ -493,29 +354,13 @@ class Calls:
         )
 
     async def _handle_no_songs(self, chat_id: int) -> None:
-        """Handles the scenario where the song queue becomes empty.
 
-        It ends the call and sends a notification message.
-
-        Args:
-            chat_id (int): The ID of the chat.
-        """
         await self.end(chat_id)
         await self.bot.sendTextMessage(
             chat_id, text="🎵 Queue finished.\nUse /play to add more songs!"
         )
 
     async def end(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Ends the playback session for a chat.
-
-        This involves clearing the chat's cache and leaving the voice call.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         LOGGER.info("Ending playback for chat %s", chat_id)
         try:
             client = await self._group_assistant(chat_id)
@@ -532,7 +377,7 @@ class Calls:
                 ConnectionNotFound,
                 errors.GroupcallForbidden,
             ):
-                pass  # Already not in call
+                pass
 
             return types.Ok()
         except Exception as e:
@@ -549,21 +394,6 @@ class Calls:
         duration: int,
         is_video: bool,
     ) -> Union[types.Ok, types.Error]:
-        """Seeks to a specific position in the current media stream.
-
-        This is achieved by restarting the playback with specific ffmpeg
-        parameters that instruct it to start from a certain timestamp.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-            file_path_or_url (Union[str, Path]): The path or URL of the media.
-            to_seek (int): The position to seek to, in seconds.
-            duration (int): The total duration of the media, in seconds.
-            is_video (bool): Whether the stream is a video.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         if to_seek < 0 or duration <= 0:
             return types.Error(
                 code=400,
@@ -589,18 +419,6 @@ class Calls:
     async def speed_change(
         self, chat_id: int, speed: float = 1.0
     ) -> Union[types.Ok, types.Error]:
-        """Changes the playback speed of the current stream.
-
-        This restarts the playback with ffmpeg filters to adjust the tempo.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-            speed (float): The desired playback speed (e.g., 1.5 for 1.5x).
-                Must be between 0.5 and 4.0. Defaults to 1.0.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         if not 0.5 <= speed <= 4.0:
             return types.Error(
                 code=400, message="Invalid speed value.\n" "Must be between 0.5 and 4.0"
@@ -622,15 +440,6 @@ class Calls:
     async def change_volume(
         self, chat_id: int, volume: int
     ) -> Union[None, types.Error]:
-        """Changes the playback volume of the call.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-            volume (int): The desired volume level (1-200).
-
-        Returns:
-            None on success, or an `Error` on failure.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -648,14 +457,6 @@ class Calls:
             return types.Error(code=500, message=f"Volume change failed: {str(e)}")
 
     async def mute(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Mutes the current stream.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -670,14 +471,6 @@ class Calls:
             return types.Error(code=500, message=f"Mute operation failed: {str(e)}")
 
     async def unmute(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Unmutes the current stream.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -694,14 +487,6 @@ class Calls:
             return types.Error(code=500, message=f"Unmute operation failed: {str(e)}")
 
     async def resume(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Resumes a paused stream.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -718,14 +503,6 @@ class Calls:
             return types.Error(code=500, message=f"Resume operation failed: {str(e)}")
 
     async def pause(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Pauses the current stream.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on success, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -738,14 +515,6 @@ class Calls:
             return types.Error(code=500, message=f"Pause operation failed: {str(e)}")
 
     async def played_time(self, chat_id: int) -> Union[int, types.Error]:
-        """Gets the current playback position (elapsed time) of the stream.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[int, types.Error]: The current position in seconds, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -764,14 +533,6 @@ class Calls:
             )
 
     async def vc_users(self, chat_id: int) -> Union[list, types.Error]:
-        """Gets a list of participants in the voice chat.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[list, types.Error]: A list of participant objects, or an `Error`.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -794,15 +555,6 @@ class Calls:
             )
 
     async def stats_call(self, chat_id: int) -> Union[tuple[float, float], types.Error]:
-        """Gets call statistics, such as ping and CPU usage.
-
-        Args:
-            chat_id (int): The ID of the target chat.
-
-        Returns:
-            Union[tuple[float, float], types.Error]: A tuple containing
-                (ping, cpu_usage), or an `Error` on failure.
-        """
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
@@ -818,20 +570,36 @@ class Calls:
             )
             return types.Error(code=500, message=f"Failed to get stats: {str(e)}")
 
+    def _normalize_invite_link(self, invite_link) -> str:
+        if isinstance(invite_link, str):
+            link = invite_link
+        else:
+            link = None
+            for attr in ("invite_link", "link", "chat_invite_link"):
+                value = getattr(invite_link, attr, None)
+                if isinstance(value, str) and value:
+                    link = value
+                    break
+            if not link:
+                link = str(invite_link)
+        return link.replace("https://t.me/+", "https://t.me/joinchat/")
+
+    async def _get_invite_link(self, chat_id: int):
+        invite_link = chat_invite_cache.get(chat_id)
+        if invite_link:
+            return invite_link
+
+        get_link = await self.bot.createChatInviteLink(chat_id, name="TgMusicBot")
+        if isinstance(get_link, types.Error):
+            return get_link
+
+        invite_link = self._normalize_invite_link(get_link)
+        chat_invite_cache[chat_id] = invite_link
+        return invite_link
+
     async def check_user_status(
         self, chat_id: int
     ) -> Union[ChatMemberStatusResult, types.Error]:
-        """Checks the membership status of the assistant in a chat.
-
-        Uses a cache to avoid repeated lookups.
-
-        Args:
-            chat_id (int): The ID of the chat to check.
-
-        Returns:
-            Union[ChatMemberStatusResult, types.Error]: The status of the chat
-                member, or an `Error` if the check fails.
-        """
         client = await self.get_client(chat_id)
         if isinstance(client, types.Error):
             LOGGER.error(f"Failed to get client for chat {chat_id}")
@@ -856,18 +624,6 @@ class Calls:
         return user_status
 
     async def _join_assistant(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Ensures the assistant is a member of the chat before playing.
-
-        If the assistant is not in the chat, it attempts to join using an
-        invite link.
-
-        Args:
-            chat_id (int): The ID of the chat to join.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` if the assistant is successfully
-                a member, or an `Error` if it fails to join.
-        """
         user_status = await self.check_user_status(chat_id)
         if isinstance(user_status, types.Error):
             return user_status
@@ -877,7 +633,7 @@ class Calls:
             types.ChatMemberStatusBanned().getType(),
             types.ChatMemberStatusRestricted().getType(),
         }:
-            if user_status == types.ChatMemberStatusBanned().getType():
+            if user_status.getType() == types.ChatMemberStatusBanned().getType():
                 ub = await self.get_client(chat_id)
                 if isinstance(ub, types.Error):
                     return ub
@@ -891,41 +647,21 @@ class Calls:
 
             join = await self._join_ub(chat_id)
             return join if isinstance(join, types.Error) else types.Ok()
+
         return types.Ok()
 
     async def _join_ub(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        """Handles the logic for an assistant (userbot) to join a chat.
-
-        It creates an invite link, attempts to join, and handles cases
-        like pending join requests.
-
-        Args:
-            chat_id (int): The ID of the chat for the assistant to join.
-
-        Returns:
-            Union[types.Ok, types.Error]: `Ok` on successful join, or an
-                `Error` with details on failure.
-        """
         client = await self.get_client(chat_id)
         if isinstance(client, types.Error):
             return client
 
-        invite_link = chat_invite_cache.get(chat_id)
-        if not invite_link:
-            get_link = await self.bot.createChatInviteLink(chat_id, name="TgMusicBot")
-            if isinstance(get_link, types.Error):
-                return get_link
-            invite_link = get_link.invite_link
+        invite_link = await self._get_invite_link(chat_id)
+        if isinstance(invite_link, types.Error):
+            return invite_link
 
-        if not invite_link:
-            return types.Error(
-                code=400, message=f"Failed to get invite link for chat {chat_id}"
-            )
-
-        chat_invite_cache[chat_id] = invite_link
-        invite_link = invite_link.replace("https://t.me/+", "https://t.me/joinchat/")
         user_id = client.me.id
         cache_key = f"{chat_id}:{user_id}"
+
         try:
             await client.join_chat(invite_link)
             user_status_cache[cache_key] = types.ChatMemberStatusMember()
@@ -937,17 +673,17 @@ class Calls:
             if isinstance(ok, types.Error):
                 return ok
             user_status_cache[cache_key] = types.ChatMemberStatusMember()
-            return ok
+            return types.Ok()
         except errors.UserAlreadyParticipant:
             user_status_cache[cache_key] = types.ChatMemberStatusMember()
             return types.Ok()
         except errors.InviteHashExpired:
+            chat_invite_cache.pop(chat_id, None)
             return types.Error(
                 code=400,
-                message=f"Invite link has expired or my assistant (<code>{user_id}</code>) is banned from this group.",
+                message=f"Invite link expired or banned (<code>{user_id}</code>)",
             )
         except Exception as e:
-            return types.Error(code=400, message=f"Failed to join {user_id}: {e}")
-
+            return types.Error(code=400, message=f"Join failed {user_id}: {e}")
 
 call = Calls()
