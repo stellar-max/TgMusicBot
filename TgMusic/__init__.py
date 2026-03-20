@@ -15,22 +15,41 @@ StartTime = datetime.now()
 
 def _patch_pytdbot_tdjson() -> None:
     def execute(self, request):
-        if not isinstance(request, str):
+        if not isinstance(request, (str, bytes, bytearray)):
             request = json.dumps(
                 request,
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
+
+        if isinstance(request, str):
+            request = request.encode("utf-8")
+        elif isinstance(request, bytearray):
+            request = bytes(request)
+
         res = self._td_execute(request)
-        return json.loads(res) if res else None
+
+        if not res:
+            return None
+
+        if isinstance(res, (bytes, bytearray)):
+            res = res.decode("utf-8")
+
+        return json.loads(res)
 
     def send(self, client_id, query):
-        if not isinstance(query, str):
+        if not isinstance(query, (str, bytes, bytearray)):
             query = json.dumps(
                 query,
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
+
+        if isinstance(query, str):
+            query = query.encode("utf-8")
+        elif isinstance(query, bytearray):
+            query = bytes(query)
+
         return self._td_send(client_id, query)
 
     TdJson.execute = execute
