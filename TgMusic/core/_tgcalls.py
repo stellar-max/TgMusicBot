@@ -292,7 +292,7 @@ class Calls:
                 f"<b>Now Playing:</b> <emoji id={5244840485066916762}>🎧</emoji>\n\n"
                 f"‣<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
                 f"‣<b>:</b> {sec_to_min(duration)}\n"
-                f"<blockquote>‣<b>Played by:</b> {song.user} <emoji id={5258387666616994756}></emoji>▶️</blockquote>""
+                f"<blockquote>‣<b>Played by:</b> {song.user} <emoji id={5258387666616994756}></emoji>▶️</blockquote>"
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
