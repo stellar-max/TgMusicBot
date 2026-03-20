@@ -137,7 +137,6 @@ class YouTubeUtils:
         cookie_dir = "TgMusic/cookies"
         try:
             if not os.path.exists(cookie_dir):
-                LOGGER.warning("Cookie directory '%s' does not exist.", cookie_dir)
                 return None
             files = await asyncio.to_thread(os.listdir, cookie_dir)
             cookies_files = [f for f in files if f.endswith(".txt")]
@@ -311,7 +310,6 @@ class YouTubeUtils:
 
         for fmt in YouTubeUtils._format_candidates(video):
             try:
-                LOGGER.debug("Trying yt-dlp format '%s' for %s", fmt, video_id)
                 opts = YouTubeUtils._build_ydl_opts(
                     fmt, cookie_file, output_template, video
                 )
@@ -320,7 +318,6 @@ class YouTubeUtils:
                     timeout=600,
                 )
                 if downloaded_path and downloaded_path.exists():
-                    LOGGER.info("Successfully downloaded %s to %s", video_id, downloaded_path)
                     return downloaded_path
             except asyncio.TimeoutError:
                 LOGGER.error("yt-dlp timed out for video ID: %s", video_id)
@@ -418,10 +415,7 @@ class YouTubeData(MusicService):
     async def _fetch_data(self, url: str) -> Optional[Dict[str, Any]]:
         try:
             if YouTubeUtils.YOUTUBE_PLAYLIST_PATTERN.match(url):
-                LOGGER.debug(f"Processing YouTube playlist: {url}")
                 return await self._get_playlist_data(url)
-
-            LOGGER.debug(f"Processing YouTube video: {url}")
             return await self._get_video_data(url)
         except Exception as error:
             LOGGER.error(f"Data fetch failed for {url}: {error}")
