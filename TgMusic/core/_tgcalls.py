@@ -272,7 +272,8 @@ class Calls:
             file_path = song.file_path or await self.song_download(song)
             if not file_path:
                 await reply.edit_text(
-                    "⚠️ Failed to download the song.\n" "Skipping to next track..."
+                    "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Failed to download the song.</b>\n"
+                    "<i>Skipping to next track...</i>"
                 )
                 await self.play_next(chat_id)
                 return
@@ -282,10 +283,10 @@ class Calls:
                 return
             duration = song.duration or await get_audio_duration(file_path)
             text = (
-                  f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing:</b>\n"
+                  f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing |</b>\n"
                   f"• <b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
                   f"• <b>Playtime:</b> {sec_to_min(duration)}\n"
-                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played by:</b> {song.user}</blockquote>"
+                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>"
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
