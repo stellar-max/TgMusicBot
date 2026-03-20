@@ -254,7 +254,6 @@ class Calls:
             return types.Error(code=500, message=f"Playback error: {str(e)}")
 
     async def play_next(self, chat_id: int) -> None:
-        LOGGER.info("Playing next song for chat %s", chat_id)
         loop = chat_cache.get_loop_count(chat_id)
         if loop > 0:
             chat_cache.set_loop_count(chat_id, loop - 1)
@@ -269,11 +268,9 @@ class Calls:
             await self._handle_no_songs(chat_id)
 
     async def _play_song(self, chat_id: int, song: CachedTrack) -> None:
-        LOGGER.info("Playing song for chat %s: %s", chat_id, song.name)
-
         try:
             reply = await self.bot.sendTextMessage(
-                chat_id, "⏳ Loading... Please wait."
+                chat_id, "⏬ Downloading... Please wait."
             )
             if isinstance(reply, types.Error):
                 LOGGER.error("Failed to send message: %s", reply)
@@ -292,10 +289,10 @@ class Calls:
             duration = song.duration or await get_audio_duration(file_path)
 
             text = (
-                f"<b>Now Playing:</b>\n\n"
-                f"‣ <b>Title:</b> <a href='{song.url}'>{song.name}</a>\n"
-                f"‣ <b>Duration:</b> {sec_to_min(duration)}\n"
-                f"‣ <b>Requested by:</b> {song.user}"
+                f"<b>Now Playing:</b> <emoji id={5244840485066916762}>🎧</emoji>\n\n"
+                f"‣<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+                f"‣<b>:</b> {sec_to_min(duration)}\n"
+                f"<blockquote>‣<b>Played by:</b> {song.user} <emoji id={5258387666616994756}></emoji>▶️</blockquote>""
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
@@ -357,11 +354,10 @@ class Calls:
 
         await self.end(chat_id)
         await self.bot.sendTextMessage(
-            chat_id, text="🎵 Queue finished.\nUse /play to add more songs!"
+            chat_id, text = f"<emoji id={5290040544796353556}></emoji> Queue finished.\nUse /play to add more songs!"
         )
 
     async def end(self, chat_id: int) -> Union[types.Ok, types.Error]:
-        LOGGER.info("Ending playback for chat %s", chat_id)
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
