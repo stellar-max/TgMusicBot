@@ -205,10 +205,10 @@ async def _handle_single_track(
         chat_cache.add_song(chat_id, song)
 
         queue_info = (
-            f"<b>🎧 Added to Queue (#{len(queue)})</b>\n\n"
-            f"▫ <b>Track:</b> <a href='{song.url}'>{song.name}</a>\n"
-            f"▫ <b>Duration:</b> {sec_to_min(song.duration)}\n"
-            f"▫ <b>Requested by:</b> {song.user}"
+            f"<b><tg-emoji emoji-id=\"5952035317396544898\">🎧</tg-emoji> Added to Queue (#{len(queue)})</b>\n\n"
+            f"▫ <b>Name:</b> <a href='{song.url}'>{song.name}</a>\n"
+            f"▫ <b>Length:</b> {sec_to_min(song.duration)}\n"
+            f"▫ <b>Added by:</b> {song.user}"
         )
 
         thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
@@ -231,10 +231,10 @@ async def _handle_single_track(
     # Prepare now playing message
     thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
     now_playing = (
-        f"🎵 <b>Now Playing:</b>\n\n"
-        f"▫ <b>Track:</b> <a href='{song.url}'>{song.name}</a>\n"
+        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing:</b>\n\n"
+        f"▫ <b>Track:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
         f"▫ <b>Duration:</b> {sec_to_min(song.duration)}\n"
-        f"▫ <b>Requested by:</b> {song.user}"
+        f"<tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>by:</b> {song.user}"
     )
 
     update_result = await _update_msg_with_thumb(
