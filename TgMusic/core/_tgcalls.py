@@ -159,17 +159,11 @@ class Calls:
                     elif isinstance(update, ChatUpdate) and (
                         update.status.KICKED or update.status.LEFT_GROUP
                     ):
-                        LOGGER.debug(
-                            "Cleaning up chat %s after leaving", update.chat_id
-                        )
                         chat_cache.clear_chat(update.chat_id)
                     elif (
                         isinstance(update, ChatUpdate)
                         and update.status.CLOSED_VOICE_CHAT
                     ):
-                        LOGGER.debug(
-                            "Cleaning up chat %s after leaving", update.chat_id
-                        )
                         chat_cache.clear_chat(update.chat_id)
                         await self.end(update.chat_id)
                 except Exception as e:
@@ -289,9 +283,9 @@ class Calls:
             duration = song.duration or await get_audio_duration(file_path)
             text = (
                   f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing:</b>\n"
-                  f"•<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
-                  f"•<b>Duration:</b> {sec_to_min(duration)}\n"
-                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji>:</b> {song.user}</blockquote>"
+                  f"• <b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+                  f"• <b>Playtime:</b> {sec_to_min(duration)}\n"
+                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played by:</b> {song.user}</blockquote>"
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
