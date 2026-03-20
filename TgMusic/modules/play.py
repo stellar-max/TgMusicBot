@@ -61,7 +61,7 @@ def build_song_selection_message(
     buttons = [
         [
             types.InlineKeyboardButton(
-                text=f"{track.name[:18]}",
+                text=f"{track.name[:15]}",
                 type=types.InlineKeyboardButtonTypeCallback(
                     f"vcplay_{track.platform.lower()}_{track.id}".encode()
                 ),
@@ -130,10 +130,13 @@ async def _handle_single_track(
         if isinstance(download_result, types.Error):
             return await edit_text(
                 msg,
-                f"❌ Download failed: {download_result.message}",
+                f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Download failed:</b> {download_result.message}",
             )
         if not download_result:
-            return await edit_text(msg, "❌ Failed to download track")
+            return await edit_text(
+                msg,
+                "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Failed to download track</b>",
+            )
         song.file_path = download_result
 
     song.duration = song.duration or await get_audio_duration(song.file_path)
@@ -163,14 +166,17 @@ async def _handle_single_track(
 
     play_result = await call.play_media(chat_id, song.file_path, video=is_video)
     if isinstance(play_result, types.Error):
-        return await edit_text(msg, text=f"⚠️ Playback error: {play_result.message}")
+        return await edit_text(
+            msg,
+            text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Playback error:</b> {play_result.message}",
+        )
 
     thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
     now_playing = (
-        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <u><b>Now Jamming:</b></u>\n\n"
+        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <u><b>Now Jamming |</b></u>\n\n"
         f"<b>Track:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
         f"<b>Playtime:</b> {sec_to_min(song.duration)}\n"
-        f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played by:</b> {song.user}</blockquote>"
+        f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>"
     )
 
     update_result = await _update_msg_with_thumb(
@@ -193,7 +199,10 @@ async def _handle_multiple_tracks(
     is_active = chat_cache.is_active(chat_id)
     queue = chat_cache.get_queue(chat_id)
 
-    queue_header = "<b>📥 Added to Queue:</b>\n<blockquote>\n"
+    queue_header = (
+        "<b><tg-emoji emoji-id=\"5228799636914839340\">📥</tg-emoji> Added to Queue:</b>\n"
+        "<blockquote>\n"
+    )
     queue_items = []
 
     for index, track in enumerate(tracks):
@@ -214,14 +223,14 @@ async def _handle_multiple_tracks(
             ),
         )
         queue_items.append(
-            f"<b>{position}.</b> {track.name}\n└ Duration: {sec_to_min(track.duration)}"
+            f"<b>{position}.</b> {' '.join(track.name.split()[:15])}\n└ Duration: {sec_to_min(track.duration)}"
         )
 
     queue_summary = (
         f"</blockquote>\n"
-        f"<b>📋 Total in Queue:</b> {len(chat_cache.get_queue(chat_id))}\n"
-        f"<b>⏱ Total Duration:</b> {sec_to_min(sum(t.duration for t in tracks))}\n"
-        f"<b>👤 Requested by:</b> {user_by}"
+        f"<b><tg-emoji emoji-id=\"5807626765874499116\">📋</tg-emoji> Total in Queue:</b> {len(chat_cache.get_queue(chat_id))}\n"
+        f"<b><tg-emoji emoji-id=\"5258113901106580375\">⏱</tg-emoji> Total Playtime:</b> {sec_to_min(sum(t.duration for t in tracks))}\n"
+        f"<b><tg-emoji emoji-id=\"5438221683922070990\">👤</tg-emoji> User:</b> {user_by}"
     )
 
     full_message = queue_header + "\n".join(queue_items) + queue_summary
@@ -243,7 +252,10 @@ async def play_music(
     is_video: bool = False,
 ):
     if not url_data or not url_data.tracks:
-        return await edit_text(msg, "❌ No tracks found in the provided source.")
+        return await edit_text(
+            msg,
+            "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> No tracks found in the provided source.</b>",
+        )
 
     await edit_text(
         msg,
@@ -282,7 +294,7 @@ async def _handle_telegram_file(
         return await edit_text(
             reply_message,
             text=(
-                "<b>⚠️ Download Failed</b>\n\n"
+                "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Download Failed</b>\n\n"
                 f"▫ <b>File:</b> <code>{file_name}</code>\n"
                 f"▫ <b>Error:</b> <code>{file_path.message}</code>"
             ),
@@ -319,14 +331,14 @@ async def _handle_text_search(
     if isinstance(search_result, types.Error):
         return await edit_text(
             msg,
-            text=f"🔍 Search failed: {search_result.message}",
+            text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Search failed:</b> {search_result.message}",
             reply_markup=SupportButton,
         )
 
     if not search_result or not search_result.tracks:
         return await edit_text(
             msg,
-            text="🔍 No results found. Try different keywords.",
+            text="<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> No results found. Try different keywords.</b>",
             reply_markup=SupportButton,
         )
 
@@ -336,7 +348,7 @@ async def _handle_text_search(
         if isinstance(track_info, types.Error):
             return await edit_text(
                 msg,
-                text=f"⚠️ Track info error: {track_info.message}",
+                text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Track info error:</b> {track_info.message}",
                 reply_markup=SupportButton,
             )
         return await play_music(c, msg, track_info, user_by)
@@ -356,12 +368,14 @@ async def _handle_text_search(
 async def handle_play_command(c: Client, msg: types.Message, is_video: bool = False):
     chat_id = msg.chat_id
     if chat_id > 0:
-        return await msg.reply_text("❌ This command only works in groups/channels.")
+        return await msg.reply_text(
+            "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> This command only works in groups/channels.</b>"
+        )
 
     queue = chat_cache.get_queue(chat_id)
     if len(queue) > 10:
         return await msg.reply_text(
-            "⚠️ Queue limit reached (10 tracks max). Use /end to clear queue."
+            "<b><tg-emoji emoji-id=\"5807626765874499116\">📋</tg-emoji> Queue limit reached (10 tracks max).</b>\nUse /end to clear queue."
         )
 
     reply = await msg.getRepliedMessage() if msg.reply_to_message_id else None
@@ -375,7 +389,7 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
         info = await c.getMessageLinkInfo(url)
         if isinstance(info, types.Error) or not info.message:
             await msg.reply_text(
-                f"⚠️ Could not resolve message from link. {info.message}"
+                f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Could not resolve message from link.</b> {info.message}"
             )
             c.logger.warning(f"❌ Could not resolve message from link: {url}; {info}")
             return None
@@ -394,8 +408,8 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
         usage_text = (
             "🎵 <b>Usage:</b>\n"
             f"/{'vplay' if is_video else 'play'} [song_name|URL]\n\n"
-            "Supported platforms:\n"
-            "▫ YouTube\n▫ Spotify\n▫ JioSaavn\n▫ SoundCloud\n▫ Apple Music"
+            "<b>Supported platforms:</b>\n"
+            "• YouTube\n▫ Spotify\n• JioSaavn\n• SoundCloud\n• Apple Music"
         )
         return await edit_text(status_msg, text=usage_text, reply_markup=SupportButton)
 
@@ -409,9 +423,9 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
             return await edit_text(
                 status_msg,
                 text=(
-                    "⚠️ Unsupported URL\n\n"
-                    "Supported platforms:\n"
-                    "▫ YouTube\n▫ Spotify\n▫ JioSaavn\n▫ SoundCloud\n▫ Apple Music"
+                    "<b><tg-emoji emoji-id=\"5454225457916420314\">⚠️</tg-emoji> Unsupported URL</b>\n\n"
+                    "<b>Supported platforms:</b>\n"
+                    "• YouTube\n• Spotify\n• JioSaavn\n• SoundCloud\n• Apple Music"
                 ),
                 reply_markup=SupportButton,
             )
@@ -420,7 +434,7 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
         if isinstance(track_info, types.Error):
             return await edit_text(
                 status_msg,
-                text=f"⚠️ Couldn't retrieve track info:\n{track_info.message}",
+                text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Couldn't retrieve track info:</b>\n{track_info.message}",
                 reply_markup=SupportButton,
             )
 
@@ -439,14 +453,14 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
     if isinstance(search_result, types.Error):
         return await edit_text(
             status_msg,
-            text=f"🔍 Search failed: {search_result.message}",
+            text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Search failed:</b> {search_result.message}",
             reply_markup=SupportButton,
         )
 
     if not search_result or not search_result.tracks:
         return await edit_text(
             status_msg,
-            text="🔍 No results found. Try different keywords.",
+            text="<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> No results found. Try different keywords.</b>",
             reply_markup=SupportButton,
         )
 
@@ -454,7 +468,7 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
     if isinstance(video_info, types.Error):
         return await edit_text(
             status_msg,
-            text=f"⚠️ Video error: {video_info.message}",
+            text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Video error:</b> {video_info.message}",
             reply_markup=SupportButton,
         )
 
