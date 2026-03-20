@@ -287,12 +287,11 @@ class Calls:
                 await reply.edit_text(play_result.message)
                 return
             duration = song.duration or await get_audio_duration(file_path)
-
             text = (
-                f"<b>Now Playing:</b> {custom_emoji('🎧', 5244840485066916762)}\n\n"
-                f"‣<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
-                f"‣<b>Duration:</b> {sec_to_min(duration)}\n"
-                f"<blockquote>{custom_emoji('▶️', 5258387666616994756)}<b>Played by:</b> {song.user}</blockquote>"
+                  f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing:</b>\n"
+                  f"•<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+                  f"•<b>Duration:</b> {sec_to_min(duration)}\n"
+                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji>:</b> {song.user}</blockquote>"
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
