@@ -33,14 +33,6 @@ from TgMusic.modules.utils.play_helpers import (
 
 
 def _get_jiosaavn_url(track_id: str) -> str:
-    """Generates a JioSaavn URL from a combined title and ID string.
-
-    Args:
-        track_id (str): A string in the format "title/song_id".
-
-    Returns:
-        str: A full, well-formed JioSaavn song URL.
-    """
     try:
         title, song_id = track_id.rsplit("/", 1)
     except ValueError:
@@ -50,18 +42,6 @@ def _get_jiosaavn_url(track_id: str) -> str:
 
 
 def _get_platform_url(platform: str, track_id: str) -> str:
-    """Constructs a full track URL from a platform name and a track ID.
-
-    This helper function acts as a factory to create valid URLs for different
-    supported music platforms.
-
-    Args:
-        platform (str): The name of the platform (e.g., "youtube", "spotify").
-        track_id (str): The unique identifier for the track on that platform.
-
-    Returns:
-        str: The full URL to the track.
-    """
     platform = platform.lower()
     if not track_id:
         return ""
@@ -77,19 +57,7 @@ def _get_platform_url(platform: str, track_id: str) -> str:
 def build_song_selection_message(
     user_by: str, tracks: list[MusicTrack]
 ) -> tuple[str, types.ReplyMarkupInlineKeyboard]:
-    """Builds an interactive song selection message with an inline keyboard.
 
-    This is used when `play_type` is set to 1, allowing the user to choose
-    from a list of search results.
-
-    Args:
-        user_by (str): The name of the user who made the request.
-        tracks (list[MusicTrack]): A list of `MusicTrack` objects from the search.
-
-    Returns:
-        tuple[str, types.ReplyMarkupInlineKeyboard]: A tuple containing the
-            message text and the corresponding inline keyboard.
-    """
     greeting = f"{user_by}, select a track:" if user_by else "Select a track:"
     buttons = [
         [
@@ -112,19 +80,7 @@ async def _update_msg_with_thumb(
     thumb: str,
     button: types.ReplyMarkupInlineKeyboard,
 ):
-    """Updates a message with a thumbnail and caption, or just text if no thumb.
 
-    This helper function is used to send the "Now Playing" or "Added to Queue"
-    messages, which can either be a photo with a caption or a plain text message
-    depending on the chat's settings.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message to be edited.
-        text (str): The HTML-formatted text for the caption or message body.
-        thumb (str): The local path to the thumbnail image.
-        button (types.ReplyMarkupInlineKeyboard): The inline keyboard to attach.
-    """
     if not thumb:
         return await edit_text(
             msg, text=text, reply_markup=button, disable_web_page_preview=True
@@ -153,23 +109,6 @@ async def _handle_single_track(
     file_path: str = None,
     is_video: bool = False,
 ):
-    """Processes a single track for playback or queuing.
-
-    This function is the core logic for handling a single song. It downloads
-    the track if not already available locally, adds it to the queue, and
-    either starts playback (if the call is inactive) or sends an "Added to
-    Queue" notification.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message to update with status.
-        track (MusicTrack): The metadata of the track to be played.
-        user_by (str): The name of the user who requested the song.
-        file_path (str, optional): The local path to the file if it's
-            already downloaded (e.g., a Telegram file). Defaults to None.
-        is_video (bool, optional): Flag indicating if the track is a video.
-            Defaults to False.
-    """
     chat_id = msg.chat_id
     song = CachedTrack(
         name=track.name,
@@ -183,8 +122,6 @@ async def _handle_single_track(
         is_video=is_video,
         url=track.url,
     )
-
-    # Download track if not already cached
     if not song.file_path:
         download_result = await call.song_download(song)
         if isinstance(download_result, types.Error):
@@ -195,12 +132,8 @@ async def _handle_single_track(
         song.file_path = download_result
         if not download_result:
             return await edit_text(msg, "❌ Failed to download track")
-
-    # Get duration if not provided
     song.duration = song.duration or await get_audio_duration(song.file_path)
-
     if chat_cache.is_active(chat_id):
-        # Add to queue if playback is active
         queue = chat_cache.get_queue(chat_id)
         chat_cache.add_song(chat_id, song)
 
@@ -220,15 +153,12 @@ async def _handle_single_track(
             control_buttons("play") if await db.get_buttons_status(chat_id) else None,
         )
 
-    # Start new playback session
     chat_cache.set_active(chat_id, True)
     chat_cache.add_song(chat_id, song)
 
     play_result = await call.play_media(chat_id, song.file_path, video=is_video)
     if isinstance(play_result, types.Error):
-        return await edit_text(msg, text=f"⚠️ Playback error: {play_result.message}")
-
-    # Prepare now playing message
+        return await edit_text(msg, text=f"⚠️ Playback error: {play_result.message}"
     thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
     now_playing = (
         f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <u><b>Now Jamming:</b></u>\n\n"
@@ -253,17 +183,6 @@ async def _handle_single_track(
 async def _handle_multiple_tracks(
     msg: types.Message, tracks: list[MusicTrack], user_by: str
 ):
-    """Processes and queues multiple tracks from a playlist or album.
-
-    This function iterates through a list of tracks, adds each one to the
-    queue, and then sends a summary message. If the call was inactive, it
-    starts playback of the first song in the added list.
-
-    Args:
-        msg (types.Message): The message to update with the queue summary.
-        tracks (list[MusicTrack]): The list of tracks to add.
-        user_by (str): The name of the user who requested the playlist/album.
-    """
     chat_id = msg.chat_id
     is_active = chat_cache.is_active(chat_id)
     queue = chat_cache.get_queue(chat_id)
@@ -300,8 +219,6 @@ async def _handle_multiple_tracks(
     )
 
     full_message = queue_header + "\n".join(queue_items) + queue_summary
-
-    # Handle message length limit
     if len(full_message) > 4096:
         full_message = queue_summary
 
@@ -309,7 +226,6 @@ async def _handle_multiple_tracks(
         await call.play_next(chat_id)
 
     await edit_text(msg, full_message, reply_markup=control_buttons("play"))
-
 
 async def play_music(
     c: Client,
@@ -319,20 +235,6 @@ async def play_music(
     tg_file_path: str = None,
     is_video: bool = False,
 ):
-    """The main dispatcher for music playback after track data is fetched.
-
-    This function determines whether the source contains a single track or
-    multiple tracks (like a playlist) and calls the appropriate handler.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message to update with status.
-        url_data (PlatformTracks): The fetched track data.
-        user_by (str): The name of the user who made the request.
-        tg_file_path (str, optional): The path if the source is a Telegram file.
-            Defaults to None.
-        is_video (bool, optional): Flag for video playback. Defaults to False.
-    """
     if not url_data or not url_data.tracks:
         return await edit_text(msg, "❌ No tracks found in the provided source.")
 
@@ -348,14 +250,6 @@ async def play_music(
 async def _handle_telegram_file(
     c: Client, reply: types.Message, reply_message: types.Message, user_by: str
 ):
-    """Handles playback requests that are replies to Telegram audio/video files.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        reply (types.Message): The message containing the media file.
-        reply_message (types.Message): The message to update with status.
-        user_by (str): The name of the user who made the request.
-    """
     content = reply.content
     mime_type = None
     if isinstance(content, types.MessageDocument):
@@ -370,8 +264,6 @@ async def _handle_telegram_file(
         and mime_type
         and mime_type.startswith("video/")
     )
-
-    # Download the attached file
     file_path, file_name = await tg.download_msg(reply, reply_message)
     if isinstance(file_path, types.Error):
         return await edit_text(
@@ -407,18 +299,6 @@ async def _handle_text_search(
     wrapper: DownloaderWrapper,
     user_by: str,
 ):
-    """Handles music searches initiated by a text query.
-
-    It performs a search using the provided wrapper and then either plays
-    the first result directly or shows a selection menu, depending on the
-    chat's `play_type` setting.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message to update with search results or status.
-        wrapper (DownloaderWrapper): The downloader instance for the search.
-        user_by (str): The name of the user who made the request.
-    """
     chat_id = msg.chat_id
     play_type = await db.get_play_type(chat_id)
 
@@ -436,8 +316,6 @@ async def _handle_text_search(
             text="🔍 No results found. Try different keywords.",
             reply_markup=SupportButton,
         )
-
-    # Direct play if configured
     if play_type == 0:
         track_url = search_result.tracks[0].url
         track_info = await DownloaderWrapper(track_url).get_info()
@@ -448,8 +326,6 @@ async def _handle_text_search(
                 reply_markup=SupportButton,
             )
         return await play_music(c, msg, track_info, user_by)
-
-    # Show selection menu
     selection_text, selection_keyboard = build_song_selection_message(
         user_by, search_result.tracks
     )
@@ -463,24 +339,10 @@ async def _handle_text_search(
 
 
 async def handle_play_command(c: Client, msg: types.Message, is_video: bool = False):
-    """The main entry point and dispatcher for the /play and /vplay commands.
-
-    This function parses the user's command, determines the input type (URL,
-    text search, or file reply), and routes the request to the appropriate
-    handler function (`_handle_telegram_file`, `_handle_text_search`, etc.).
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message object containing the command.
-        is_video (bool, optional): True if handling a /vplay command.
-            Defaults to False.
-    """
     chat_id = msg.chat_id
-    # Validate chat type
     if chat_id > 0:
         return await msg.reply_text("❌ This command only works in groups/channels.")
 
-    # Check queue limit
     queue = chat_cache.get_queue(chat_id)
     if len(queue) > 10:
         return await msg.reply_text(
@@ -502,20 +364,13 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
             c.logger.warning(f"❌ Could not resolve message from link: {url}; {info}")
             return None
         reply = await c.getMessage(info.chat_id, info.message.id)
-
-    # Send initial response
     status_msg = await msg.reply_text("🔍 Processing request...")
     if isinstance(status_msg, types.Error):
         LOGGER.error("Failed to send status message: %s", status_msg)
         return None
-
     c.loop.create_task(del_msg(msg))  # Clean up command message
-
     args = extract_argument(msg.text)
-    # Initialize appropriate downloader
     wrapper = (YouTubeData if is_video else DownloaderWrapper)(url or args)
-
-    # Validate input
     if not args and not url and (not reply or not tg.is_valid(reply)):
         usage_text = (
             "🎵 <b>Usage:</b>\n"
@@ -525,13 +380,9 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
         )
         return await edit_text(status_msg, text=usage_text, reply_markup=SupportButton)
 
-    requester = await msg.mention()
-
-    # Handle Telegram file attachments
+    requester = await msg.mention(
     if reply and tg.is_valid(reply):
         return await _handle_telegram_file(c, reply, status_msg, requester)
-
-    # Handle URL playback
     if url:
         if not wrapper.is_valid():
             return await edit_text(
@@ -589,22 +440,10 @@ async def handle_play_command(c: Client, msg: types.Message, is_video: bool = Fa
 @Client.on_message(filters=Filter.command("play"), position=-5)
 @admins_only(permissions="can_invite_users", is_bot=True)
 async def play_audio(c: Client, msg: types.Message) -> None:
-    """Handles the /play command for audio playback.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message object containing the command.
-    """
     await handle_play_command(c, msg, False)
 
 
 @Client.on_message(filters=Filter.command("vplay"), position=-4)
 @admins_only(permissions="can_invite_users", is_bot=True)
 async def play_video(c: Client, msg: types.Message) -> None:
-    """Handles the /vplay command for video playback.
-
-    Args:
-        c (Client): The pytdbot client instance.
-        msg (types.Message): The message object containing the command.
-    """
     await handle_play_command(c, msg, True)
