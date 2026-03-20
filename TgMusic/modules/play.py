@@ -206,9 +206,9 @@ async def _handle_single_track(
 
         queue_info = (
             f"<b><tg-emoji emoji-id=\"5952035317396544898\">🎧</tg-emoji> Added to Queue (#{len(queue)})</b>\n\n"
-            f"▫ <b>Name:</b> <a href='{song.url}'>{song.name}</a>\n"
-            f"▫ <b>Length:</b> {sec_to_min(song.duration)}\n"
-            f"▫ <b>Added by:</b> {song.user}"
+            f"<b>Name:</b> <a href='{song.url}'>{song.name}</a>\n"
+            f"<b>Length:</b> {sec_to_min(song.duration)}\n"
+            f"<b>Added by:</b> {song.user}"
         )
 
         thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
@@ -231,10 +231,10 @@ async def _handle_single_track(
     # Prepare now playing message
     thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
     now_playing = (
-        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing:</b>\n\n"
-        f"▫ <b>Track:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
-        f"▫ <b>Duration:</b> {sec_to_min(song.duration)}\n"
-        f"<tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>by:</b> {song.user}"
+        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <u><b>Now Jamming:</b></u>\n\n"
+        f"<b>Track:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+        f"<b>Playtime:</b> {sec_to_min(song.duration)}\n"
+        f"<tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji>:</b> {song.user}"
     )
 
     update_result = await _update_msg_with_thumb(
@@ -336,7 +336,7 @@ async def play_music(
     if not url_data or not url_data.tracks:
         return await edit_text(msg, "❌ No tracks found in the provided source.")
 
-    await edit_text(msg, text="⬇️ Downloading track...")
+    await edit_text(msg, text="<tg-emoji emoji-id=\"5951554843700108407\">⏬</tg-emoji> Downloading Track... Please wait.")
 
     if len(url_data.tracks) == 1:
         return await _handle_single_track(
