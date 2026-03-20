@@ -270,7 +270,7 @@ class Calls:
     async def _play_song(self, chat_id: int, song: CachedTrack) -> None:
         try:
             reply = await self.bot.sendTextMessage(
-                chat_id, "⏬ Downloading... Please wait."
+                chat_id, "<tg-emoji emoji-id=\"5951554843700108407\">⏬</tg-emoji> Downloading... Please wait."
             )
             if isinstance(reply, types.Error):
                 LOGGER.error("Failed to send message: %s", reply)
@@ -289,10 +289,10 @@ class Calls:
             duration = song.duration or await get_audio_duration(file_path)
 
             text = (
-                f"<b>Now Playing:</b> <emoji id={5244840485066916762}>🎧</emoji>\n\n"
+                f"<b>Now Playing:</b> {custom_emoji('🎧', 5244840485066916762)}\n\n"
                 f"‣<b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
-                f"‣<b>:</b> {sec_to_min(duration)}\n"
-                f"<blockquote>‣<b>Played by:</b> {song.user} <emoji id={5258387666616994756}></emoji>▶️</blockquote>"
+                f"‣<b>Duration:</b> {sec_to_min(duration)}\n"
+                f"<blockquote>{custom_emoji('▶️', 5258387666616994756)}<b>Played by:</b> {song.user}</blockquote>"
             )
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
@@ -354,7 +354,7 @@ class Calls:
 
         await self.end(chat_id)
         await self.bot.sendTextMessage(
-            chat_id, text = f"<emoji id={5290040544796353556}></emoji> Queue finished.\nUse /play to add more songs!"
+            chat_id, text = f"<tg-emoji emoji-id=\"{5290040544796353556}\">🌲</tg-emoji> Queue finished.\nUse /play to add more songs!"
         )
 
     async def end(self, chat_id: int) -> Union[types.Ok, types.Error]:
