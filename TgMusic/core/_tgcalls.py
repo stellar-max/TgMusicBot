@@ -597,6 +597,28 @@ class Calls:
         chat_invite_cache[chat_id] = invite_link
         return invite_link
 
+    async def _refresh_user_status(self, chat_id: int):
+        client = await self.get_client(chat_id)
+        if isinstance(client, types.Error):
+            return client
+
+        user_id = client.me.id
+        cache_key = f"{chat_id}:{user_id}"
+        user_status_cache.pop(cache_key, None)
+
+        user = await self.bot.getChatMember(
+            chat_id=chat_id,
+            member_id=types.MessageSenderUser(user_id),
+        )
+        if isinstance(user, types.Error):
+            return types.ChatMemberStatusLeft() if user.code == 400 else user
+
+        if user.status is None:
+            return types.ChatMemberStatusLeft()
+
+        user_status_cache[cache_key] = user.status
+        return user.status
+
     async def check_user_status(
         self, chat_id: int
     ) -> Union[ChatMemberStatusResult, types.Error]:
@@ -666,24 +688,67 @@ class Calls:
             await client.join_chat(invite_link)
             user_status_cache[cache_key] = types.ChatMemberStatusMember()
             return types.Ok()
+
         except errors.InviteRequestSent:
-            ok = await self.bot.processChatJoinRequest(
-                chat_id=chat_id, user_id=user_id, approve=True
-            )
-            if isinstance(ok, types.Error):
-                return ok
-            user_status_cache[cache_key] = types.ChatMemberStatusMember()
-            return types.Ok()
+            try:
+                ok = await self.bot.processChatJoinRequest(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    approve=True,
+                )
+                if isinstance(ok, types.Error):
+                    refreshed = await self._refresh_user_status(chat_id)
+                    if isinstance(refreshed, types.Error):
+                        return ok
+                    if refreshed.getType() not in {
+                        types.ChatMemberStatusLeft().getType(),
+                        types.ChatMemberStatusBanned().getType(),
+                        types.ChatMemberStatusRestricted().getType(),
+                    }:
+                        user_status_cache[cache_key] = refreshed
+                        return types.Ok()
+                    return ok
+
+                refreshed = await self._refresh_user_status(chat_id)
+                if isinstance(refreshed, types.Error):
+                    user_status_cache[cache_key] = types.ChatMemberStatusMember()
+                    return types.Ok()
+
+                user_status_cache[cache_key] = refreshed
+                return types.Ok()
+
+            except Exception:
+                refreshed = await self._refresh_user_status(chat_id)
+                if isinstance(refreshed, types.Error):
+                    return types.Error(
+                        code=400,
+                        message=f"Failed to approve join request for <code>{user_id}</code>",
+                    )
+                if refreshed.getType() not in {
+                    types.ChatMemberStatusLeft().getType(),
+                    types.ChatMemberStatusBanned().getType(),
+                    types.ChatMemberStatusRestricted().getType(),
+                }:
+                    user_status_cache[cache_key] = refreshed
+                    return types.Ok()
+
+                return types.Error(
+                    code=400,
+                    message=f"Join request sent but assistant <code>{user_id}</code> is still not a member",
+                )
+
         except errors.UserAlreadyParticipant:
             user_status_cache[cache_key] = types.ChatMemberStatusMember()
             return types.Ok()
+
         except errors.InviteHashExpired:
             chat_invite_cache.pop(chat_id, None)
             return types.Error(
                 code=400,
                 message=f"Invite link expired or banned (<code>{user_id}</code>)",
             )
+
         except Exception as e:
             return types.Error(code=400, message=f"Join failed {user_id}: {e}")
-
+    
 call = Calls()
