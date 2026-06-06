@@ -261,53 +261,74 @@ class Calls:
             chat_cache.remove_current_song(chat_id)
             await self._handle_no_songs(chat_id)
 
+    def _short_title(self, title: str, limit: int = 28) -> str:
+        title = " ".join(str(title or "Unknown Track Title").split())
+        return title if len(title) <= limit else title[: limit - 1].rstrip() + "…"
+
     async def _play_song(self, chat_id: int, song: CachedTrack) -> None:
         try:
             reply = await self.bot.sendTextMessage(
-                chat_id, "<tg-emoji emoji-id=\"5951554843700108407\">⏬</tg-emoji> Downloading... Please wait."
+                chat_id,
+                '<tg-emoji emoji-id="5951554843700108407">⏬</tg-emoji> Downloading... Please wait.'
             )
+
             if isinstance(reply, types.Error):
                 LOGGER.error("Failed to send message: %s", reply)
                 return
+
             file_path = song.file_path or await self.song_download(song)
+
             if not file_path:
                 await reply.edit_text(
-                    "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Failed to download the song.</b>\n"
+                    '<b><tg-emoji emoji-id="5456517411379354216">❌</tg-emoji> Failed to download the song.</b>\n'
                     "<i>Skipping to next track...</i>"
                 )
                 await self.play_next(chat_id)
                 return
+
             play_result = await self.play_media(chat_id, file_path, video=song.is_video)
+
             if isinstance(play_result, types.Error):
                 await reply.edit_text(play_result.message)
                 return
+
             duration = song.duration or await get_audio_duration(file_path)
+            title = self._short_title(song.name, 45)
+
             text = (
-                  f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <b>Now Playing |</b>\n"
-                  f"• <b>Title:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
-                  f"• <b>Playtime:</b> {sec_to_min(duration)}\n"
-                  f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>"
+                f'<tg-emoji emoji-id="5244840485066916762">🎧</tg-emoji> <b>Now Playing |</b>\n'
+                f"• <b>Title:</b> <a href='{song.url}'>{title}</a>\n"
+                f"• <b>Playtime:</b> {sec_to_min(duration)}\n"
+                f'<blockquote><tg-emoji emoji-id="5258387666616994756">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>'
             )
+
             thumbnail = (
                 await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
             )
+
             parse = await self.bot.parseTextEntities(text, types.TextParseModeHTML())
+
             if isinstance(parse, types.Error):
                 LOGGER.error("Failed to parse text entities: %s", parse)
                 parse = text
+
+            reply_markup = (
+                control_buttons("play")
+                if await db.get_buttons_status(chat_id)
+                else None
+            )
+
             if thumbnail:
                 input_content = types.InputMessagePhoto(
-                    photo=types.InputFileLocal(thumbnail), caption=parse
+                    photo=types.InputFileLocal(thumbnail),
+                    caption=parse,
                 )
+
                 await self.bot.editMessageMedia(
                     chat_id=chat_id,
                     message_id=reply.id,
                     input_message_content=input_content,
-                    reply_markup=(
-                        control_buttons("play")
-                        if await db.get_buttons_status(chat_id)
-                        else None
-                    ),
+                    reply_markup=reply_markup,
                 )
             else:
                 await self.bot.editMessageText(
@@ -317,16 +338,15 @@ class Calls:
                         text=parse,
                         link_preview_options=types.LinkPreviewOptions(is_disabled=True),
                     ),
-                    reply_markup=(
-                        control_buttons("play")
-                        if await db.get_buttons_status(chat_id)
-                        else None
-                    ),
+                    reply_markup=reply_markup,
                 )
 
         except Exception as e:
             LOGGER.error(
-                "Error in _play_song for chat %s: %s", chat_id, str(e), exc_info=True
+                "Error in _play_song for chat %s: %s",
+                chat_id,
+                str(e),
+                exc_info=True,
             )
 
     @staticmethod
@@ -501,10 +521,10 @@ class Calls:
             await client.pause(chat_id)
             return types.Ok()
         except Exception as e:
-            LOGGER.error("Pause failed for chat %s: %s", chat_id, str(e), exc_info=True)
+            LOGGER.error("Pause failed for chat%s: %s", chat_id, str(e), exc_info=True)
             return types.Error(code=500, message=f"Pause operation failed: {str(e)}")
 
-    async def played_time(self, chat_id: int) -> Union[int, types.Error]:
+    async def played_time(self, chat_id: int) -> Unio[int, types.Error]:
         try:
             client = await self._group_assistant(chat_id)
             if isinstance(client, types.Error):
