@@ -102,6 +102,9 @@ async def _update_msg_with_thumb(
         reply_markup=button,
     )
 
+def _short_title(title: str, limit: int = 28) -> str:
+    title = " ".join(str(title or "Unknown Title").split())
+    return title if len(title) <= limit else title[: limit - 1].rstrip() + "…"
 
 async def _handle_single_track(
     c: Client,
@@ -112,6 +115,7 @@ async def _handle_single_track(
     is_video: bool = False,
 ):
     chat_id = msg.chat_id
+
     song = CachedTrack(
         name=track.name,
         track_id=track.id,
@@ -127,70 +131,80 @@ async def _handle_single_track(
 
     if not song.file_path:
         download_result = await call.song_download(song)
+
         if isinstance(download_result, types.Error):
             return await edit_text(
                 msg,
-                f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Download failed:</b> {download_result.message}",
+                f'<b><tg-emoji emoji-id="5456517411379354216">❌</tg-emoji> Download failed:</b> {download_result.message}',
             )
+
         if not download_result:
             return await edit_text(
                 msg,
-                "<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Failed to download track</b>",
+                '<b><tg-emoji emoji-id="5456517411379354216">❌</tg-emoji> Failed to download track</b>',
             )
+
         song.file_path = download_result
 
     song.duration = song.duration or await get_audio_duration(song.file_path)
+
+    title = _short_title(song.name, 45)
+
+    reply_markup = (
+        control_buttons("play")
+        if await db.get_buttons_status(chat_id)
+        else None
+    )
 
     if chat_cache.is_active(chat_id):
         chat_cache.add_song(chat_id, song)
         queue = chat_cache.get_queue(chat_id)
 
         queue_info = (
-            f"<b><tg-emoji emoji-id=\"5952035317396544898\">🎧</tg-emoji> Added to Queue (#{len(queue)})</b>\n\n"
-            f"<b>Name:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+            f'<b><tg-emoji emoji-id="5952035317396544898">🎧</tg-emoji> Added to Queue (#{len(queue)})</b>\n\n'
+            f"<b>Name:</b> <a href='{song.url}'>{title}</a>\n"
             f"<b>Length:</b> {sec_to_min(song.duration)}\n"
-            f"<b>Added by:</b> {song.user}"
+            f"<b>by:</b> {song.user}"
         )
 
-        thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
         return await _update_msg_with_thumb(
             c,
             msg,
             queue_info,
-            thumb,
-            control_buttons("play") if await db.get_buttons_status(chat_id) else None,
+            "",
+            reply_markup,
         )
 
     chat_cache.set_active(chat_id, True)
     chat_cache.add_song(chat_id, song)
 
     play_result = await call.play_media(chat_id, song.file_path, video=is_video)
+
     if isinstance(play_result, types.Error):
         return await edit_text(
             msg,
-            text=f"<b><tg-emoji emoji-id=\"5456517411379354216\">❌</tg-emoji> Playback error:</b> {play_result.message}",
+            text=f'<b><tg-emoji emoji-id="5456517411379354216">❌</tg-emoji> Playback error:</b> {play_result.message}',
         )
 
-    thumb = await gen_thumb(song) if await db.get_thumbnail_status(chat_id) else ""
     now_playing = (
-        f"<tg-emoji emoji-id=\"5244840485066916762\">🎧</tg-emoji> <u><b>Now Jamming |</b></u>\n\n"
-        f"<b>Track:</b> <a href='{song.url}'>{' '.join(song.name.split()[:15])}</a>\n"
+        f'<tg-emoji emoji-id="5244840485066916762">🎧</tg-emoji> <u><b>Now Jamming |</b></u>\n\n'
+        f"<b>Track:</b> <a href='{song.url}'>{title}</a>\n"
         f"<b>Playtime:</b> {sec_to_min(song.duration)}\n"
-        f"<blockquote><tg-emoji emoji-id=\"5258387666616994756\">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>"
+        f'<blockquote><tg-emoji emoji-id="5258387666616994756">▶️</tg-emoji> <b>Played:</b> {song.user}</blockquote>'
     )
 
     update_result = await _update_msg_with_thumb(
         c,
         msg,
         now_playing,
-        thumb,
-        control_buttons("play") if await db.get_buttons_status(chat_id) else None,
+        "",
+        reply_markup,
     )
 
     if isinstance(update_result, types.Error):
         LOGGER.warning("Message update failed: %s", update_result)
-    return None
 
+    return None
 
 async def _handle_multiple_tracks(
     msg: types.Message, tracks: list[MusicTrack], user_by: str
